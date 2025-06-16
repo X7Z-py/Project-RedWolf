@@ -1,0 +1,393 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+-- Services
+local Camera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Aimbot Settings
+local Holding = false
+local AimbotEnabled = true
+local TeamCheck = false -- true ise sadece düşmanlara kilitler
+local AimPart = "Head"
+
+-- FOV Settings
+local CircleSides = 64
+local CircleColor = Color3.fromRGB(255, 255, 255)
+local CircleTransparency = 0.7
+local CircleRadius = 80
+local CircleFilled = false
+local CircleVisible = true
+local CircleThickness = 1
+
+-- Drawing FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+FOVCircle.Radius = CircleRadius
+FOVCircle.Filled = CircleFilled
+FOVCircle.Color = CircleColor
+FOVCircle.Visible = CircleVisible
+FOVCircle.Transparency = CircleTransparency
+FOVCircle.NumSides = CircleSides
+FOVCircle.Thickness = CircleThickness
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AimbotGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 240, 0, 140)
+Frame.Position = UDim2.new(0.5, -120, 0.7, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = Frame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+
+local toggleAimbotBtn = Instance.new("TextButton")
+toggleAimbotBtn.Text = "Aimbot: ON"
+toggleAimbotBtn.Size = UDim2.new(1, -16, 0, 30)
+toggleAimbotBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+toggleAimbotBtn.TextColor3 = Color3.new(1,1,1)
+toggleAimbotBtn.Font = Enum.Font.SourceSansBold
+toggleAimbotBtn.TextSize = 20
+toggleAimbotBtn.Parent = Frame
+
+toggleAimbotBtn.MouseButton1Click:Connect(function()
+    AimbotEnabled = not AimbotEnabled
+    toggleAimbotBtn.Text = "Aimbot: " .. (AimbotEnabled and "ON" or "OFF")
+    toggleAimbotBtn.BackgroundColor3 = AimbotEnabled and Color3.fromRGB(0,180,0) or Color3.fromRGB(180,0,0)
+    FOVCircle.Visible = AimbotEnabled
+end)
+
+local teamCheckLabel = Instance.new("TextLabel")
+teamCheckLabel.Text = "Team Check"
+teamCheckLabel.Size = UDim2.new(1, -50, 0, 30)
+teamCheckLabel.BackgroundTransparency = 1
+teamCheckLabel.TextColor3 = Color3.new(1,1,1)
+teamCheckLabel.Font = Enum.Font.SourceSansBold
+teamCheckLabel.TextSize = 18
+teamCheckLabel.TextXAlignment = Enum.TextXAlignment.Left
+teamCheckLabel.Parent = Frame
+
+local teamCheckToggle = Instance.new("TextButton")
+teamCheckToggle.Text = TeamCheck and "✔" or "✘"
+teamCheckToggle.Size = UDim2.new(0, 40, 0, 30)
+teamCheckToggle.Position = UDim2.new(1, -40, 0, 0)
+teamCheckToggle.BackgroundColor3 = Color3.fromRGB(60,60,60)
+teamCheckToggle.TextColor3 = Color3.new(1,1,1)
+teamCheckToggle.Font = Enum.Font.SourceSansBold
+teamCheckToggle.TextSize = 20
+teamCheckToggle.Parent = teamCheckLabel
+
+teamCheckToggle.MouseButton1Click:Connect(function()
+    TeamCheck = not TeamCheck
+    teamCheckToggle.Text = TeamCheck and "✔" or "✘"
+end)
+
+local aimParts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
+local AimPartLabel = Instance.new("TextLabel")
+AimPartLabel.Text = "Aim Part"
+AimPartLabel.Size = UDim2.new(1, 0, 0, 30)
+AimPartLabel.BackgroundTransparency = 1
+AimPartLabel.TextColor3 = Color3.new(1,1,1)
+AimPartLabel.Font = Enum.Font.SourceSansBold
+AimPartLabel.TextSize = 18
+AimPartLabel.TextXAlignment = Enum.TextXAlignment.Left
+AimPartLabel.Parent = Frame
+
+local aimPartDropdown = Instance.new("TextButton")
+aimPartDropdown.Text = AimPart
+aimPartDropdown.Size = UDim2.new(1, 0, 0, 25)
+aimPartDropdown.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+aimPartDropdown.TextColor3 = Color3.new(1,1,1)
+aimPartDropdown.Font = Enum.Font.SourceSansBold
+aimPartDropdown.TextSize = 18
+aimPartDropdown.Parent = Frame
+
+local dropdownOpen = false
+local dropdownFrame = Instance.new("Frame")
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+dropdownFrame.Size = UDim2.new(1, 0, 0, 0)
+dropdownFrame.ClipsDescendants = true
+dropdownFrame.Parent = Frame
+
+aimPartDropdown.MouseButton1Click:Connect(function()
+    if dropdownOpen then
+        dropdownFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quad", 0.2, true)
+        dropdownOpen = false
+    else
+        local totalHeight = #aimParts * 25
+        dropdownFrame:TweenSize(UDim2.new(1,0,0,totalHeight), "Out", "Quad", 0.2, true)
+        dropdownOpen = true
+    end
+end)
+
+for i, partName in ipairs(aimParts) do
+    local btn = Instance.new("TextButton")
+    btn.Text = partName
+    btn.Size = UDim2.new(1, 0, 0, 25)
+    btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 18
+    btn.Parent = dropdownFrame
+    btn.Position = UDim2.new(0,0,0,(i-1)*25)
+
+    btn.MouseButton1Click:Connect(function()
+        AimPart = partName
+        aimPartDropdown.Text = AimPart
+        dropdownFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quad", 0.2, true)
+        dropdownOpen = false
+    end)
+end
+
+local fovLabel = Instance.new("TextLabel")
+fovLabel.Text = "FOV: " .. CircleRadius
+fovLabel.Size = UDim2.new(1, 0, 0, 25)
+fovLabel.BackgroundTransparency = 1
+fovLabel.TextColor3 = Color3.new(1,1,1)
+fovLabel.Font = Enum.Font.SourceSansBold
+fovLabel.TextSize = 18
+fovLabel.TextXAlignment = Enum.TextXAlignment.Left
+fovLabel.Parent = Frame
+
+local fovSlider = Instance.new("Frame")
+fovSlider.Size = UDim2.new(1, -20, 0, 20)
+fovSlider.Position = UDim2.new(0, 10, 0, 0)
+fovSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+fovSlider.Parent = Frame
+
+local fovFill = Instance.new("Frame")
+fovFill.Size = UDim2.new(CircleRadius/300, 1, 1, 0)
+fovFill.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+fovFill.Parent = fovSlider
+
+local dragging = false
+fovSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+    end
+end)
+
+fovSlider.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local pos = math.clamp((input.Position.X - fovSlider.AbsolutePosition.X) / fovSlider.AbsoluteSize.X, 0, 1)
+        CircleRadius = math.floor(pos * 290) + 10
+        fovFill.Size = UDim2.new(pos, 0, 1, 0)
+        fovLabel.Text = "FOV: " .. CircleRadius
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.KeypadPlus then
+        CircleRadius = math.clamp(CircleRadius + 5, 10, 300)
+        local pos = (CircleRadius - 10) / 290
+        fovFill.Size = UDim2.new(pos, 0, 1, 0)
+        fovLabel.Text = "FOV: " .. CircleRadius
+    elseif input.KeyCode == Enum.KeyCode.Minus or input.KeyCode == Enum.KeyCode.KeypadMinus then
+        CircleRadius = math.clamp(CircleRadius - 5, 10, 300)
+        local pos = (CircleRadius - 10) / 290
+        fovFill.Size = UDim2.new(pos, 0, 1, 0)
+        fovLabel.Text = "FOV: " .. CircleRadius
+    end
+end)
+
+-- Closest player finder
+local function GetClosestPlayer()
+    local maxDist = CircleRadius
+    local target = nil
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if TeamCheck and player.Team == LocalPlayer.Team then
+                -- Takım kontrolü varsa aynı takım atla
+                continue
+            end
+
+            local character = player.Character
+            if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToScreenPoint(character.HumanoidRootPart.Position)
+                if onScreen then
+                    local mousePos = UserInputService:GetMouseLocation()
+                    local dist = (Vector2.new(mousePos.X, mousePos.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if dist < maxDist then
+                        maxDist = dist
+                        target = player
+                    end
+                end
+            end
+        end
+    end
+    return target
+end
+
+-- Input events for aiming
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        Holding = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        Holding = false
+    end
+end)
+
+-- Modern ESP sistemi
+local ESPEnabled = true
+local ESPObjects = {}
+
+local function CreateESP(player)
+    local espFolder = Instance.new("Folder")
+    espFolder.Name = player.Name .. "_ESP"
+    espFolder.Parent = ScreenGui
+
+    local box = Drawing.new("Square")
+    box.Color = Color3.fromRGB(0, 255, 0)
+    box.Thickness = 2
+    box.Transparency = 1
+    box.Filled = false
+
+    local healthBar = Drawing.new("Square")
+    healthBar.Color = Color3.fromRGB(255, 0, 0)
+    healthBar.Thickness = 1
+    healthBar.Transparency = 1
+    healthBar.Filled = true
+
+    local nameTag = Drawing.new("Text")
+    nameTag.Text = player.Name
+    nameTag.Color = Color3.fromRGB(255, 255, 255)
+    nameTag.Size = 16
+    nameTag.Center = true
+    nameTag.Outline = true
+
+    ESPObjects[player] = {
+        Box = box,
+        HealthBar = healthBar,
+        NameTag = nameTag,
+        Folder = espFolder,
+    }
+end
+
+local function RemoveESP(player)
+    if ESPObjects[player] then
+        ESPObjects[player].Box:Remove()
+        ESPObjects[player].HealthBar:Remove()
+        ESPObjects[player].NameTag:Remove()
+        ESPObjects[player].Folder:Destroy()
+        ESPObjects[player] = nil
+    end
+end
+
+local function UpdateESP()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+            if TeamCheck and player.Team == LocalPlayer.Team then
+                -- Aynı takım ise ESP gösterme
+                RemoveESP(player)
+                continue
+            end
+
+            if not ESPObjects[player] then
+                CreateESP(player)
+            end
+
+            local character = player.Character
+            local rootPart = character.HumanoidRootPart
+            local humanoid = character.Humanoid
+
+            -- World konumlarını ekran koordinatlarına dönüştür
+            local rootPos, onScreenRoot = Camera:WorldToViewportPoint(rootPart.Position)
+            local head = character:FindFirstChild("Head")
+            if not head then continue end
+            local headPos, onScreenHead = Camera:WorldToViewportPoint(head.Position)
+
+            if onScreenRoot and onScreenHead then
+                local esp = ESPObjects[player]
+
+                -- Box hesaplaması
+                local width = 50
+                local height = (headPos.Y - rootPos.Y)
+                if height < 0 then height = -height end
+                if height < 20 then height = 20 end
+
+                local x = rootPos.X - width / 2
+                local y = headPos.Y
+
+                -- Box pozisyon ve boyut ayarları
+                esp.Box.Position = Vector2.new(x, y)
+                esp.Box.Size = Vector2.new(width, height)
+                esp.Box.Color = player.Team == LocalPlayer.Team and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(0, 255, 0)
+                esp.Box.Visible = ESPEnabled
+
+                -- Healthbar pozisyon ve boyut
+                local healthPercent = humanoid.Health / humanoid.MaxHealth
+                esp.HealthBar.Position = Vector2.new(x - 6, y + height * (1 - healthPercent))
+                esp.HealthBar.Size = Vector2.new(4, height * healthPercent)
+                esp.HealthBar.Color = Color3.fromRGB(255 * (1 - healthPercent), 255 * healthPercent, 0)
+                esp.HealthBar.Visible = ESPEnabled
+
+                -- İsim etiketi
+                esp.NameTag.Position = Vector2.new(rootPos.X, y - 14)
+                esp.NameTag.Text = player.Name
+                esp.NameTag.Color = player.Team == LocalPlayer.Team and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(255, 255, 255)
+                esp.NameTag.Visible = ESPEnabled
+            else
+                RemoveESP(player)
+            end
+        else
+            RemoveESP(player)
+        end
+    end
+end
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+    -- FOV Circle güncelle
+    FOVCircle.Position = Vector2.new(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
+    FOVCircle.Radius = CircleRadius
+    FOVCircle.Filled = CircleFilled
+    FOVCircle.Color = CircleColor
+    FOVCircle.Visible = AimbotEnabled and CircleVisible
+    FOVCircle.Transparency = CircleTransparency
+    FOVCircle.NumSides = CircleSides
+    FOVCircle.Thickness = CircleThickness
+
+    -- Aimbot
+    if Holding and AimbotEnabled then
+        local targetPlayer = GetClosestPlayer()
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild(AimPart) then
+            local targetPos = targetPlayer.Character[AimPart].Position
+            TweenService:Create(Camera, TweenInfo.new(0.01, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFrame.new(Camera.CFrame.Position, targetPos)}):Play()
+        end
+    end
+
+    -- ESP güncelleme
+    if ESPEnabled then
+        UpdateESP()
+    else
+        -- ESP devre dışı ise tüm ESP'leri kaldır
+        for player, _ in pairs(ESPObjects) do
+            RemoveESP(player)
+        end
+    end
+end)

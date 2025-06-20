@@ -107,5 +107,5 @@ local function updateESP()
     end
 end
 
-game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Esp"; Text = "Loaded!"; Duration = 20})
+game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Made by X7Z"; Text = "Supports "Forsaken" idfk why"; Duration = 20})
 task.spawn(updateESP())
